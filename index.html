@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' />
+    <title>Big</title>
+    <link href='big.css' rel='stylesheet' type='text/css' />
+    <link href='highlight.css' rel='stylesheet' type='text/css' />
+    <style>
+      .new-shiny { background: #aaaaaa; }
+      .title-page {
+      }
+      .title-page img {
+        max-width: 1em;
+        max-height: 1em;
+        position: relative;
+        top: 0.15em;
+      }
+      .apache-logo {
+        left: 0.10em;
+      }
+      .center-image div {
+        background-position: center top;
+        background-size: 60%;
+        background-repeat: no-repeat;
+      }
+      table {
+        border-spacing: 0.5em 0.25em;
+      }
+      pre {
+        margin:0;
+        padding:0.2em;
+        background:#fff;
+        color:#000;
+        font-weight:normal;
+      }
+      .dark pre em {
+        color: #d13787;
+      }
+      .light pre em {
+        color: #fadb03;
+      }
+
+    </style>
+    <script src='big.js'></script>
+    <script src='highlight.js'></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+  </head>
+  <body class='dark'>
+    <div data-bodyclass="title-page">
+      <img class="apache-logo" src="images/apache-logo.png" alt="apache logo" /> Apache &amp;
+      <br /><img src="images/nginx-logo.png" alt="nginx logo" /> NGiNX
+      <br /><span style="display: inline-block; width: 1em; text-align: center;">@</span> Scale
+    </div>
+    <div>
+      <h1>@jeffszusz</h1>
+      <ul>
+        <li>full-stack API and SPA developer</li>
+        <li>accidental DevOps engineer</li>
+      </ul>
+    </div>
+    <div>
+      45% of the web runs on Apache.
+    </div>
+    <div>
+      19% of the web runs on NGiNX.
+    </div>
+    <div>
+      Apache holds 41% of the million busiest websites and NGiNX holds 28%.
+    </div>
+    <div>
+      Apache and Microsoft once held a nearly 60/40 split.
+      <notes>So why did NGiNX cut such a huge swath?</notes>
+    </div>
+    <div>
+      c10k
+    </div>
+    <div>
+      10k current connections used to be a problem even for the top tier software companies.
+    </div>
+    <div>
+      For them, the numbers have gotten larger:
+      <ul>
+        <li>WhatsApp: 2 Million concurrent connections on a 1U server (100GB RAM, 24 CPU cores)</li>
+        <li>MigratoryData: 12 Million concurrent connections on a single 1U server (55GB RAM, 24 CPU cores)</li>
+      </ul>
+    </div>
+    <div>
+      Throughput like this requires writing custom systems to take networking,
+      memory and CPU management away from the Unix operating system that's hosting the application.
+    </div>
+    <div>
+      On commodity hardware, without writing kernel extensions or a custom network stack,
+      even just 10k concurrent connections can be a tall order.
+    </div>
+    <div>
+      Dreamhost did some benchmarks:
+      <ul>
+        <li>25,000 total requests for each test for a 5k PNG file</li>
+        <li>slowly increasing the number of concurrent requests from 50 to 3000</li>
+      </ul>
+      <notes>
+        [server]$ ab -n 25000 -c 50 http://www.example.com/dreamhost_logo.png
+      </notes>
+    </div>
+    <div data-background-image="images/memory_usage_graph.jpg" data-bodyclass="center-image">
+    </div>
+    <div data-background-image="images/requests_per_second_graph.jpg" data-bodyclass="center-image">
+    </div>
+    <div>
+      NGiNX clearly wins in raw performance
+    </div>
+    <div>
+      But multiple Apache instances behind a load balancer can solve all our problems, right?
+    </div>
+    <div>
+      <pre>
+[proxy_balancer:emerg] (28)<em>No space left on device</em>:
+AH01180: <em>mutex creation</em> of proxy-balancer-shm :
+p75dfed5c_myservice <em>failed</em></pre>
+    </div>
+    <div>
+      WTF?
+    </div>
+    <div data-bodyclass="nobreak">
+      Semaphores: shared memory structures used for interprocess communication
+    </div>
+    <div>
+      Semaphore Arrays: more sophisticated than standard semaphores, each can manage multiple resources
+    </div>
+    <div>
+      CentOS 7 defaults to 128 Semaphore Arrays.
+    </div>
+    <div>
+      Apache uses a single Semaphore Array to manage each worker process. Even with its most performant multiprocessing module, that means one Semaphore Array per ProxyBalancer rule.
+    </div>
+    <div>
+      Apache also uses 2 Semaphore Arrays just to manage its processes, on top of any Proxy configurations.
+    </div>
+    <div>
+      If you're proxying to 127 distinct microservices, Apache won't start.
+    </div>
+    <div>
+      If you're dealing with that many services, you probably register them dynamically.
+    </div>
+    <div>
+      So the 127th service comes online and silently adds itself to the Apache configuration.
+    </div>
+    <div>
+      <span style="color:orange">boom</span>
+    </div>
+    <div>
+      Solution?
+    </div>
+    <div>
+      <pre>sysctl -w kernel.sem="250 64000 32 <em>256</em>"</pre>
+    </div>
+    <div>
+      Problem solved... until a 255th service silently registers itself.
+    </div>
+    <div>
+      And Apache is now operating outside of intended parameters.
+    </div>
+    <div>
+      We bought ourselves some time, but we'll have to come back to this later.
+    </div>
+    <div>
+      New problem: 5 Minutes of downtime during peak traffic.
+    </div>
+    <div>
+      Apache instances are load balanced and none seem strained for resources.
+    </div>
+    <div>
+      WTF?
+    </div>
+    <div>
+      <pre>
+[mpm_event:error]
+  [pid 23971:tid 140569643808896] AH00485:
+  <em>scoreboard is full, not at MaxRequestWorkers</em></pre>
+    </div>
+    <div>
+      During a "graceful" restart, Apache signals all its children to complete their work and terminate, while it reloads the config and forks new processes.
+    </div>
+    <div>
+      Under a large load of long-running processes, the "scoreboard" that keeps track of work being done can be occupied by old processes while new ones try to fork.
+    </div>
+    <div>
+      In short, if Apache's got a lot of long-running traffic, dynamically adding and removing services causes Apache to slow down significantly for anywhere between 5 seconds and a full minute.
+    </div>
+    <div>
+      Facepalm moment: Apache was monitored and catalogued by the dynamic service discovery system.
+    </div>
+    <div>
+      If Apache doesn't respond to a health check every 5 seconds, the catalog reloads. Which causes every instance in the Apache cluster to reload.
+    </div>
+    <div>
+      The <em>full scoreboard</em> cascades across the cluster AND causes each instance to flutter.
+    </div>
+    <div>
+      It settles down in ~5 minutes.
+    </div>
+    <div>
+      Investigation shows it's been doing this roughly every 150 hours (just over six days) for a while, but the fluttering didn't last long enough to catch in monitoring because load has been lower.
+    </div>
+    <div>
+      Turns out some other service in the catalog has a memory leak: every six days, under the usual load, it reaches max memory and recovers itself. There are no negative effects... except for a catalog reload in apache.
+    </div>
+    <div>Solution?</div>
+    <div>
+      The fluttering can be fixed by making sure Apache itself doesn't trigger catalog reloads.
+    </div>
+    <div>
+      To fix the <em>full scoreboard</em> issue that causes a performance drop when services are added or removed, we need to look elsewhere.
+    </div>
+    <div>
+      A newer version of Apache makes this error happen far less frequently and under much higher stress, but it doesn't make the problem go away.
+    </div>
+    <div>
+      enter NGiNX
+    </div>
+    <div>
+      NGiNX was started in 2002 as a solution to the C10K problem, and released in 2004.
+    </div>
+    <div>
+      Unlike Apache, NGiNX was built with major concurrency problems in mind. Where apache ties work to processes or threads, NGiNX does not.
+    </div>
+    <div>
+      Apache's most modern multiprocessing module, mpm_event, can spawn 16 processes and 25 threads per process (total of 400 concurrent connections) in its default configuration.
+    </div>
+    <div>
+      With a beefy enough server you can get a maximum possible 16 processes with 2000 threads per process (total of 32,000 connections)
+    </div>
+    <div>
+      NGiNX spawns worker processes as well, but very few - ideally one per processor core on the server.
+    </div>
+    <div>
+      Each process can handle thousands of connections through a non-blocking event loop without spawning more processes or threads, decoupling connections from any work that needs to be done.
+    </div>
+    <div>
+      This keeps memory and CPU usage very low, prevents the need for an abundance of system Semaphores, and allows for smooth configuration reloads - dynamic addition and removal of upstream servers.
+    </div>
+    <div>
+      The number of connections NGiNX can handle is limited by your CPU, Memory, and available TCP sockets on the machine (65,536 per network interface / IP address)
+    </div>
+    <div>
+      At the number of maximum connections, the NGiNX server is still able to do work, while Apache would be sluggish and almost unresponsive due to high memory and CPU usage.
+    </div>
+    <div>
+      tl;dr
+      <br />NGiNX can handle more traffic, has a much lower impact from graceful reloads of its proxy_pass catalog, has no limit to the number of distinct services it can proxy to, and uses fewer system resources than Apache.
+    </div>
+    <div>
+      Apache's still fantastic for most use cases, and you can solve traffic problems by throwing more Apache instances behind a more powerful load balancer - though more servers means a higher hosting cost.
+    </div>
+    <div>
+      Unfortunately, Apache just isn't cut out as a proxy server for lots of microservices under heavy load.
+    </div>
+  </body>
+</html>
