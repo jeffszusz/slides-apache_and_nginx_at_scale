@@ -213,34 +213,33 @@ p75dfed5c_myservice <em>failed</em></pre>
 [mpm_event:error]
   [pid 23971:tid 140569643808896] AH00485:
   <em>scoreboard is full, not at MaxRequestWorkers</em></pre>
+      <notes>
+        During a "graceful" restart, Apache signals all its child processes to finish their work and terminate, while it creates new processes for new connections using the new configs.
+      </notes>
+      <notes>
+        Under a large load of long-running processes, the "scoreboard" that keeps track of work being done can be occupied by old processes while new ones try to fork.
+      </notes>
     </div>
     <div>
-      <!-- TODO rewrite this long winded garbage -->
-      During a "graceful" restart, Apache signals all its children to complete their work and terminate, while it reloads the config and forks new processes.
+      If it's handling a lot of long-running traffic, adding and removing services causes Apache to slow down
+      <notes>significantly, for anywhere between 5 seconds and a full minute</notes>
     </div>
     <div>
-      Under a large load of long-running processes, the "scoreboard" that keeps track of work being done can be occupied by old processes while new ones try to fork.
+      Facepalm
+      <notes>Apache was monitored and catalogued by the dynamic service discovery system.</notes>
+      <notes>If Apache doesn't respond to a health check every 5 seconds, the catalog updates. Which causes every instance in the Apache cluster to reload.</notes>
     </div>
     <div>
-      In short, if Apache's got a lot of long-running traffic, dynamically adding and removing services causes Apache to slow down significantly for anywhere between 5 seconds and a full minute.
-    </div>
-    <div>
-      Facepalm moment: Apache was monitored and catalogued by the dynamic service discovery system.
-    </div>
-    <div>
-      If Apache doesn't respond to a health check every 5 seconds, the catalog updates. Which causes every instance in the Apache cluster to reload.
-    </div>
-    <div>
-      The <em>full scoreboard</em> cascades across the cluster AND causes each instance to flutter.
+      The <em>full scoreboard</em> error cascades across the entire cluster, in turn causing each instance to flutter.
     </div>
     <div>
       It settles down in ~5 minutes.
-    </div>
-    <div>
-      Investigation shows it's been doing this roughly every 150 hours (just over six days) for a while, but the fluttering didn't last long enough to catch in monitoring because load has been lower.
-    </div>
-    <div>
-      Turns out some other service in the catalog has a memory leak: every six days, under the usual load, it reaches max memory and recovers itself. There are no negative effects... except for a catalog reload in apache.
+      <notes>
+        Investigation shows it's been doing this roughly every 150 hours (just over six days) for a while, but the fluttering didn't last long enough to catch in monitoring because load has been lower.
+      </notes>
+      <notes>
+        Turns out some other service in the catalog has a memory leak: every six days, under the usual load, it reaches max memory and recovers itself. There are no negative effects... except for a catalog reload in apache.
+      </notes>
     </div>
     <div>Solution?</div>
     <div>
@@ -248,9 +247,9 @@ p75dfed5c_myservice <em>failed</em></pre>
     </div>
     <div>
       To fix the <em>full scoreboard</em> issue that causes a performance drop when services are added or removed, we need to look elsewhere.
-    </div>
-    <div>
-      A newer version of Apache makes this error happen far less frequently and under much higher stress, but it doesn't make the problem go away.
+      <notes>
+        A newer version of Apache makes this error happen far less frequently and under much higher stress, but it doesn't make the problem go away.
+      </notes>
     </div>
     <div>
       enter NGiNX
@@ -259,38 +258,60 @@ p75dfed5c_myservice <em>failed</em></pre>
       NGiNX was started in 2002 as a solution to the C10K problem, and released in 2004.
     </div>
     <div>
-      Unlike Apache, NGiNX was built with major concurrency problems in mind. Where apache ties work to processes or threads, NGiNX does not.
+      Unlike Apache, NGiNX was built with high concurrency in mind.
+      <notes>Where apache ties work to processes or threads, NGiNX does not.</notes>
     </div>
     <div>
-      Apache's most modern multiprocessing module, mpm_event, can spawn 16 processes and 25 threads per process (total of 400 concurrent connections) in its default configuration.
+      NGiNX spawns a few processes, each of which contains an event loop.
+      <notes>waitstaff at a restaurant analogy!</notes>
+      <notes>ideally one per processor core on the server.</notes>
+      <notes>
+        Each process can handle thousands of connections without blocking or spawning any new processes or threads.
+      </notes>
+      <notes>
+        This keeps memory and CPU usage very low, prevents the need for an abundance of
+        system Semaphores, and allows for smooth configuration reloads - dynamic addition and removal of upstream servers.
+      </notes>
     </div>
     <div>
-      With a beefy enough server you can get a maximum possible 16 processes with 2000 threads per process (total of 32,000 connections)
+      Apache can spawn 400 concurrent connections by default
+      <notes>(16 processes and 25 threads per process)</notes>
+      <notes>that's with its most modern multiprocessing module, mpm_event</notes>
     </div>
     <div>
-      NGiNX spawns worker processes as well, but very few - ideally one per processor core on the server.
+      Maximum possible is 32,000 concurrent connections
+      <notes>(16 processes with 2000 threads per process)</notes>
+      <notes>The kind of hardware you'd need to run it on to ever reach that is insanely expensive,</notes>
+      <notes>to exceed that you'd need to edit the Apache source and compile it yourself.</notes>
     </div>
     <div>
-      Each process can handle thousands of connections through a non-blocking event loop without spawning more processes or threads, decoupling connections from any work that needs to be done.
+      NGiNX can handle ~65,500 concurrent connections by default
+      <notes>assuming your Linux OS is tuned appropriately and you have the memory and CPU to support it</notes>
+      <notes>limited by file descriptors (around 65.5k by default) and available TCP sockets on the machine (also 65.5k per network interface / IP address)</notes>
     </div>
     <div>
-      This keeps memory and CPU usage very low, prevents the need for an abundance of system Semaphores, and allows for smooth configuration reloads - dynamic addition and removal of upstream servers.
+      NGiNX can handle more traffic,
+      <ul>
+        <li>has almost no impact from reloads of its proxy catalog,</li>
+        <li>has no limit to the number of distinct services it can proxy to,</li>
+        <li>and uses fewer system resources than Apache.</li>
+      </ul>
     </div>
     <div>
-      The number of connections NGiNX can handle is limited by your CPU, Memory, and available TCP sockets on the machine (65,536 per network interface / IP address)
+      Compared to NGiNX, Apache just isn't cut out for <em>"Web Scale"</em>
+      <notes>Apache's still fantastic for most use cases, and you can solve traffic
+        problems by throwing more Apache instances behind a more powerful load balancer
+        though more servers means a higher hosting cost.</notes>
     </div>
     <div>
-      At the number of maximum connections, the NGiNX server is still able to do work, while Apache would be sluggish and almost unresponsive due to high memory and CPU usage.
-    </div>
-    <div>
-      tl;dr
-      <br />NGiNX can handle more traffic, has a much lower impact from graceful reloads of its proxy_pass catalog, has no limit to the number of distinct services it can proxy to, and uses fewer system resources than Apache.
-    </div>
-    <div>
-      Apache's still fantastic for most use cases, and you can solve traffic problems by throwing more Apache instances behind a more powerful load balancer - though more servers means a higher hosting cost.
-    </div>
-    <div>
-      Unfortunately, Apache just isn't cut out as a proxy server for lots of microservices under heavy load.
+      Jeff Szusz
+      <br />Bull Rush Studios Inc.
+      <br />
+      <br />twitter:
+      <br />@jeffszusz for games, food, etc.
+      <br />@BullRushStudios for development
+      <br />
+      <br />hackforge email: jeff@hackf.org
     </div>
   </body>
 </html>
