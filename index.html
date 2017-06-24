@@ -3,7 +3,7 @@
   <head>
     <meta charset='utf-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' />
-    <title>Big</title>
+    <title>Apache &amp; Nginx at Scale</title>
     <link href='big.css' rel='stylesheet' type='text/css' />
     <link href='highlight.css' rel='stylesheet' type='text/css' />
     <style>
@@ -132,7 +132,7 @@ p75dfed5c_myservice <em>failed</em></pre>
       CentOS 7 defaults to 128 Semaphore Arrays.
     </div>
     <div>
-      Apache uses a single Semaphore Array to manage each worker process. Even with its most performant multiprocessing module, that means one Semaphore Array per ProxyBalancer rule.
+      Even with Apache's most sophisticated multiprocessing module, each ProxyBalancer rule soaks up an entire Semaphore Array.
     </div>
     <div>
       Apache also uses 2 Semaphore Arrays just to manage its processes, on top of any Proxy configurations.
@@ -192,7 +192,7 @@ p75dfed5c_myservice <em>failed</em></pre>
       Facepalm moment: Apache was monitored and catalogued by the dynamic service discovery system.
     </div>
     <div>
-      If Apache doesn't respond to a health check every 5 seconds, the catalog reloads. Which causes every instance in the Apache cluster to reload.
+      If Apache doesn't respond to a health check every 5 seconds, the catalog updates. Which causes every instance in the Apache cluster to reload.
     </div>
     <div>
       The <em>full scoreboard</em> cascades across the cluster AND causes each instance to flutter.
