@@ -60,13 +60,28 @@
       </ul>
     </div>
     <div>
+      What's this talk really about?
+    </div>
+    <div>
+      Apache fails as a proxy server at web scale, and I'm going to tell you why.
+      <notes>
+        I'm not going to show you Apache configuration files or NGiNX configuration files,
+        I'm not going to give you an exhaustive feature comparison
+        or look at any source code for either web server.
+      </notes>
+    </div>
+    <div>
       45% of the web runs on Apache.
+      <notes>
+        41% of the million busiest websites run on Apache.
+      </notes>
     </div>
     <div>
       19% of the web runs on NGiNX.
-    </div>
-    <div>
-      Apache holds 41% of the million busiest websites and NGiNX holds 28%.
+      <notes>
+        28% of the million busiest websites run on NGiNX.
+        That means the engineers behind some of the hottest stuff are choosing NGiNX more than the average person.
+      </notes>
     </div>
     <div>
       Apache and Microsoft once held a nearly 60/40 split.
@@ -74,30 +89,33 @@
     </div>
     <div>
       c10k
+      <notes>
+        10k current connections used to be a problem even for the top tier software companies.
+        For them, the numbers have gotten larger:
+      </notes>
     </div>
     <div>
-      10k current connections used to be a problem even for the top tier software companies.
+      WhatsApp: 2 Million concurrent connections on a 1U server (100GB RAM, 24 CPU cores)
+      <notes>
+        This was written in Erlang and Facebook was willing to pay 19 billion dollars for it.
+      </notes>
     </div>
     <div>
-      For them, the numbers have gotten larger:
-      <ul>
-        <li>WhatsApp: 2 Million concurrent connections on a 1U server (100GB RAM, 24 CPU cores)</li>
-        <li>MigratoryData: 12 Million concurrent connections on a single 1U server (55GB RAM, 24 CPU cores)</li>
-      </ul>
+      MigratoryData: 12 Million concurrent connections on a single 1U server (55GB RAM, 24 CPU cores)
+      <notes>
+        Throughput like this requires writing custom systems to take networking,
+        memory and CPU management away from the Unix operating system that's hosting the application.
+      </notes>
     </div>
     <div>
-      Throughput like this requires writing custom systems to take networking,
-      memory and CPU management away from the Unix operating system that's hosting the application.
-    </div>
-    <div>
-      On commodity hardware, without writing kernel extensions or a custom network stack,
-      even just 10k concurrent connections can be a tall order.
+      On commodity hardware, even just 10k concurrent connections can be a tall order.
+      <notes>And we're unlikely to write kernel extensions or a cusotm network stack</notes>
     </div>
     <div>
       Dreamhost did some benchmarks:
       <ul>
-        <li>25,000 total requests for each test for a 5k PNG file</li>
-        <li>slowly increasing the number of concurrent requests from 50 to 3000</li>
+        <li>8 tests, slowly increasing the number of concurrent connections</li>
+        <li>each of the 8 tests made a total of 25,000 requests for a 5k PNG file</li>
       </ul>
       <notes>
         [server]$ ab -n 25000 -c 50 http://www.example.com/dreamhost_logo.png
@@ -111,7 +129,18 @@
       NGiNX clearly wins in raw performance
     </div>
     <div>
-      But multiple Apache instances behind a load balancer can solve all our problems, right?
+      But Apache is everywhere! It's familiar!
+      <notes>
+        Why move to a totally different webserver that's unfamiliar and maybe doesn't come with your web hosting?
+      </notes>
+      <notes>
+        Multiple Apache instances behind a load balancer can solve all our problems, right?
+      </notes>
+    </div>
+    <div>
+      Apache can be used as an HTTP proxy server for microservices.
+      <notes>what's a proxy? what's a microservice?</notes>
+      <notes>In fact, that's what I've been using it for. But one day, it blew up.</notes>
     </div>
     <div>
       <pre>
@@ -123,28 +152,32 @@ p75dfed5c_myservice <em>failed</em></pre>
       WTF?
     </div>
     <div data-bodyclass="nobreak">
-      Semaphores: shared memory structures used for interprocess communication
+      Semaphores: shared memory structures used for communicating between processes
+      <notes>
+        Semaphore Arrays, which Apache uses, are more sophisticated than standard semaphores: each can manage multiple resources
+      </notes>
     </div>
     <div>
-      Semaphore Arrays: more sophisticated than standard semaphores, each can manage multiple resources
-    </div>
-    <div>
-      CentOS 7 defaults to 128 Semaphore Arrays.
-    </div>
-    <div>
-      Even with Apache's most sophisticated multiprocessing module, each ProxyBalancer rule soaks up an entire Semaphore Array.
-    </div>
-    <div>
-      Apache also uses 2 Semaphore Arrays just to manage its processes, on top of any Proxy configurations.
+      RHEL / CentOS / Fedora default to 128 Semaphore Arrays
+      <notes>
+        Apache uses 2 Semaphore Arrays to manage its processes.
+      </notes>
+      <notes>
+        Even with Apache's most sophisticated multiprocessing module, each proxy definition soaks up an entire Semaphore Array.
+      </notes>
+      <notes>
+        So if you have a microservice for book title info, that's one proxy definition even if you have 20 of them
+        But you might have another service for prices, another for inventory, services for checkout and returns and warehouse location.
+      </notes>
     </div>
     <div>
       If you're proxying to 127 distinct microservices, Apache won't start.
+      <notes>
+        If you're dealing with that many services, you probably register them dynamically.
+      </notes>
     </div>
     <div>
-      If you're dealing with that many services, you probably register them dynamically.
-    </div>
-    <div>
-      So the 127th service comes online and silently adds itself to the Apache configuration.
+      Imagine the 127th service comes online and silently adds itself to the Apache configuration.
     </div>
     <div>
       <span style="color:orange">boom</span>
@@ -163,12 +196,14 @@ p75dfed5c_myservice <em>failed</em></pre>
     </div>
     <div>
       We bought ourselves some time, but we'll have to come back to this later.
+      <notes>For now, we can carry on writing features in our API until...</notes>
     </div>
     <div>
-      New problem: 5 Minutes of downtime during peak traffic.
+      5 Minutes of downtime across the entire system during peak traffic.
+      <notes>remember a load-balanced Apache cluster is directing traffic for our entire system.</notes>
     </div>
     <div>
-      Apache instances are load balanced and none seem strained for resources.
+      Apache instances don't seem strained for resources.
     </div>
     <div>
       WTF?
@@ -180,6 +215,7 @@ p75dfed5c_myservice <em>failed</em></pre>
   <em>scoreboard is full, not at MaxRequestWorkers</em></pre>
     </div>
     <div>
+      <!-- TODO rewrite this long winded garbage -->
       During a "graceful" restart, Apache signals all its children to complete their work and terminate, while it reloads the config and forks new processes.
     </div>
     <div>
