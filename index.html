@@ -47,23 +47,24 @@
     <script>hljs.initHighlightingOnLoad();</script>
   </head>
   <body class='dark'>
+
+    <!-- INTRODUCTION -->
     <div data-bodyclass="title-page">
       <img class="apache-logo" src="images/apache-logo.png" alt="apache logo" /> Apache &amp;
       <br /><img src="images/nginx-logo.png" alt="nginx logo" /> NGiNX
       <br /><span style="display: inline-block; width: 1em; text-align: center;">@</span> Scale
     </div>
     <div>
-      <h1>@jeffszusz</h1>
+      @jeffszusz
       <ul>
         <li>full-stack API and SPA developer</li>
+        <notes>I write software for the server -and- the browser, typically in Javascript</notes>
         <li>accidental DevOps engineer</li>
+        <notes>I also do a lot of deployment automation and I'm the resident expert on our Service Discovery platform, which I'll talk about in a little bit.</notes>
       </ul>
     </div>
     <div>
       What's this talk really about?
-    </div>
-    <div>
-      Apache fails as a proxy server at web scale, and I'm going to tell you why.
       <notes>
         I'm not going to show you Apache configuration files or NGiNX configuration files,
         I'm not going to give you an exhaustive feature comparison
@@ -71,27 +72,111 @@
       </notes>
     </div>
     <div>
-      45% of the web runs on Apache.
+      How Apache fails at scale (and Nginx saves the day)
+      <notes>There will be many digressions.</notes>
+    </div>
+
+    <!-- terms and concepts -->
+    <div>
+      jargon, etc.
+    </div>
+    <div>
+      Apache and Nginx are both open source web servers that can be used as HTTP <em>proxies</em>.
+      <notes>
+        a proxy is like a traffic cop that directs traffic that comes to one server to as many back-end servers as necessary.
+      </notes>
+      <notes>
+        If you write your apps in anything but PHP, you're probably using Apache or Nginx
+        to direct traffic to a Node or Ruby On Rails app, or whatever platform you use.
+      </notes>
+    </div>
+    <div>
+      Apache and Nginx also both act as <em>load balancers</em>
+      <notes>they can direct traffic, in turns, to two or more identical services</notes>
+    </div>
+    <div>
+      Multiple identical services behind a load balancer is called a <em>cluster</em>
+    </div>
+    <div>
+      <em>Microservices</em> is an architectural pattern that stresses building LOTS of separate,
+      tiny APIs that talk to each other over the network.
+      <notes>
+        When you go to Amazon.com, your browser isn't talking to a single web server - it's
+        talking through a load balanced HTTP proxy to hundreds of microservices.
+      </notes>
+    </div>
+    <div>
+      Microservices also benefit greatly from <em>service discovery</em>
+      <notes>
+        Service discovery systems recognize new servers that have been added
+        to a cluster, and automatically add them to your load balancer's catalog of available services.
+        If a service dies, it notices and removes it so you don't send traffic to a dead server.
+        This way you can avoid managing hundreds of local IP addresses in a text file
+        somewhere whenever a service becomes available or goes away - which is absolutely necessary if you're
+        autoscaling from 10 servers to 100 under heavy traffic, or something.
+      </notes>
+    </div>
+    <div>
+      Service Discovery often involves Apache or Nginx when your services have to be reachable from a browser on the internet.
+      <notes>A Service Discovery system can control your Apache or Nginx configuration, dynamically adding and removing
+        services from otherwise static configuration files.
+      </notes>
+    </div>
+
+    <!-- A NOTE ON SCALE -->
+
+    <div>
+      <em>Scale</em> can be a loaded term on the web. There are many kinds of scale, and approaches for dealing with each.
+    </div>
+    <div>
+      A high number of <em>requests</em> - hundreds of thousands or millions of concurrent users
+      <notes>this is addressed with load balancing and optimizing your server environment</notes>
+    </div>
+    <div>
+      A huge amount of <em>source code</em> - hundreds of thousands or millions of lines of code.
+    </div>
+    <div>
+      A very large <em>team</em> - hundreds or thousands of developers all stepping on each other
+      <notes>
+        both of these are addressed by splitting services into separate projects, Service Oriented Architecture or Microservices
+      </notes>
+      <notes>When you use microservices to scale code or teams, you get...</notes>
+    </div>
+    <div>
+        A lot of <em>services</em> and a lot of <em>infrastructure</em> to manage them
+    </div>
+
+    <!-- NGINX is eating the web -->
+    <div>
+      Apache and Microsoft once held a nearly 60/40 split of all web servers in the world.
+    </div>
+    <div>
+      Now, 9% runs on Microsoft's IIS and 45% of the web runs on Apache. Google's gobbled up over 6%.
       <notes>
         41% of the million busiest websites run on Apache.
       </notes>
     </div>
     <div>
-      19% of the web runs on NGiNX.
+      19% of the web runs on NGiNX today.
+    </div>
+    <div>
+      28% of the million busiest websites run on NGiNX.
       <notes>
-        28% of the million busiest websites run on NGiNX.
-        That means the engineers behind some of the hottest stuff are choosing NGiNX more than the average person.
+        So NGiNX ate a chunk of the web, and the engineers behind the hottest, busiest stuff are choosing NGiNX more than the average website.
       </notes>
     </div>
     <div>
-      Apache and Microsoft once held a nearly 60/40 split.
-      <notes>So why did NGiNX cut such a huge swath?</notes>
+      Why is NGiNX eating the web?
     </div>
+
+    <!-- C10K, C10M -->
     <div>
-      c10k
+      C10K
       <notes>
-        10k current connections used to be a problem even for the top tier software companies.
-        For them, the numbers have gotten larger:
+        10,000 concurrent connections
+        This used to be a problem even for the top tier software companies.
+        The first known system to accept this much traffic at once was an FTP server on cdrom.com in 1999.
+        For the giants of the internet, the numbers have gotten larger:
       </notes>
     </div>
     <div>
@@ -108,14 +193,19 @@
       </notes>
     </div>
     <div>
+      <notes>Software giants now struggle with</notes>
+      C10M
+    </div>
+    <div>
       On commodity hardware, even just 10k concurrent connections can be a tall order.
-      <notes>And we're unlikely to write kernel extensions or a cusotm network stack</notes>
+      <notes>And you and I are unlikely to write kernel extensions or a custom network stack to help us.</notes>
     </div>
     <div>
       Dreamhost did some benchmarks:
       <ul>
         <li>8 tests, slowly increasing the number of concurrent connections</li>
         <li>each of the 8 tests made a total of 25,000 requests for a 5k PNG file</li>
+        <li>each of the 8 tests was repeated for each of 3 different web servers</li>
       </ul>
       <notes>
         [server]$ ab -n 25000 -c 50 http://www.example.com/dreamhost_logo.png
@@ -129,27 +219,33 @@
       NGiNX clearly wins in raw performance
     </div>
     <div>
-      But Apache is everywhere! It's familiar!
+      "But Apache is everywhere! It's familiar!" - You
       <notes>
         Why move to a totally different webserver that's unfamiliar and maybe doesn't come with your web hosting?
       </notes>
       <notes>
         Multiple Apache instances behind a load balancer can solve all our problems, right?
       </notes>
+      <notes>
+        In fact, I haven't yet seen Apache fail at handling the kinds of traffic I see,
+        even with 3M users in one day a small cluster of Apache servers can do the job.
+        We'll talk about how NGiNX manages to outperform Apache, and some specific numbers, later on.
+      </notes>
+      <notes>
+        For now let's pretend we're using an Apache cluster and we're not having trouble with traffic.
+      </notes>
+      <notes>
+        One day our monitors go off and our boss throws a brick through the window - or maybe he sends us a text message, whatever.
+        Let's look at some logs.
+      </notes>
     </div>
-    <div>
-      Apache can be used as an HTTP proxy server for microservices.
-      <notes>what's a proxy? what's a microservice?</notes>
-      <notes>In fact, that's what I've been using it for. But one day, it blew up.</notes>
-    </div>
+
+    <!-- How Apache fails - SEMAPHORES -->
     <div>
       <pre>
 [proxy_balancer:emerg] (28)<em>No space left on device</em>:
 AH01180: <em>mutex creation</em> of proxy-balancer-shm :
 p75dfed5c_myservice <em>failed</em></pre>
-    </div>
-    <div>
-      WTF?
     </div>
     <div data-bodyclass="nobreak">
       Semaphores: shared memory structures used for communicating between processes
@@ -166,47 +262,47 @@ p75dfed5c_myservice <em>failed</em></pre>
         Even with Apache's most sophisticated multiprocessing module, each proxy definition soaks up an entire Semaphore Array.
       </notes>
       <notes>
-        So if you have a microservice for book title info, that's one proxy definition even if you have 20 of them
-        But you might have another service for prices, another for inventory, services for checkout and returns and warehouse location.
+        So if you have a microservice for book title info, that's one proxy definition even if you have 20 copies of it.
+        But you might have another service cluster for prices, another for inventory, services for checkout and returns and warehouse locations.
       </notes>
     </div>
     <div>
-      If you're proxying to 127 distinct microservices, Apache won't start.
+      If you're proxying to 127 distinct clusters of services, Apache won't start.
       <notes>
-        If you're dealing with that many services, you probably register them dynamically.
+        Remember Service Discovery?
       </notes>
     </div>
     <div>
-      Imagine the 127th service comes online and silently adds itself to the Apache configuration.
+      Imagine you have 126 clusters and a new one comes online, silently adding itself to the Apache configuration.
     </div>
     <div>
       <span style="color:orange">boom</span>
-    </div>
-    <div>
-      Solution?
+      <notes>Solution?</notes>
     </div>
     <div>
       <pre>sysctl -w kernel.sem="250 64000 32 <em>256</em>"</pre>
     </div>
     <div>
-      Problem solved... until a 255th service silently registers itself.
+      Problem solved... until a 255th service silently registers itself
     </div>
     <div>
-      And Apache is now operating outside of intended parameters.
+      We bought ourselves some time, but we'll have to come back to this later
+      <notes>
+        And Apache is now operating outside of intended parameters.
+      </notes>
     </div>
     <div>
-      We bought ourselves some time, but we'll have to come back to this later.
-      <notes>For now, we can carry on writing features in our API until...</notes>
+      For now, we can carry on writing features in our API until...</notes>
     </div>
+
+    <!-- HOW apache fails - scoreboard full! -->
     <div>
       5 Minutes of downtime across the entire system during peak traffic.
       <notes>remember a load-balanced Apache cluster is directing traffic for our entire system.</notes>
     </div>
     <div>
-      Apache instances don't seem strained for resources.
-    </div>
-    <div>
-      WTF?
+      Apache instances don't seem strained for resources
+      <notes>So let's look at the logs.</notes>
     </div>
     <div>
       <pre>
@@ -214,20 +310,23 @@ p75dfed5c_myservice <em>failed</em></pre>
   [pid 23971:tid 140569643808896] AH00485:
   <em>scoreboard is full, not at MaxRequestWorkers</em></pre>
       <notes>
-        During a "graceful" restart, Apache signals all its child processes to finish their work and terminate, while it creates new processes for new connections using the new configs.
+        Using sophisticated forensic analysis (google search) we find the problem:
+        During a "graceful" restart, Apache tells its workers to finish their work with old configs and terminate, while it creates new processes for new connections using any new configs it finds.
       </notes>
       <notes>
-        Under a large load of long-running processes, the "scoreboard" that keeps track of work being done can be occupied by old processes while new ones try to fork.
+        Under a large load of long-running processes, the "scoreboard" that keeps track of work being done can be occupied by old processes while new ones try to start.
       </notes>
     </div>
     <div>
       If it's handling a lot of long-running traffic, adding and removing services causes Apache to slow down
       <notes>significantly, for anywhere between 5 seconds and a full minute</notes>
+      <notes>But that doesn't account for a total blackout for 5 minutes</notes>
     </div>
     <div>
-      Facepalm
+      Ready to Facepalm?
+      <notes>The service discovery system monitors all of its services, and removes them from the load balancer pool if they become unhealthy.</notes>
       <notes>Apache was monitored and catalogued by the dynamic service discovery system.</notes>
-      <notes>If Apache doesn't respond to a health check every 5 seconds, the catalog updates. Which causes every instance in the Apache cluster to reload.</notes>
+      <notes>so...If Apache doesn't respond to a health check every 5 seconds, the catalog updates. Which causes every instance in the Apache cluster to reload.</notes>
     </div>
     <div>
       The <em>full scoreboard</em> error cascades across the entire cluster, in turn causing each instance to flutter.
@@ -240,17 +339,19 @@ p75dfed5c_myservice <em>failed</em></pre>
       <notes>
         Turns out some other service in the catalog has a memory leak: every six days, under the usual load, it reaches max memory and recovers itself. There are no negative effects... except for a catalog reload in apache.
       </notes>
+      <notes>Solution?</notes>
     </div>
-    <div>Solution?</div>
     <div>
       The fluttering can be fixed by making sure Apache itself doesn't trigger catalog reloads.
     </div>
     <div>
-      To fix the <em>full scoreboard</em> issue that causes a performance drop when services are added or removed, we need to look elsewhere.
+      To fix the <em>full scoreboard</em> issue that causes a performance drop when there's a legitimate catalog reload, we need to look elsewhere.
       <notes>
         A newer version of Apache makes this error happen far less frequently and under much higher stress, but it doesn't make the problem go away.
       </notes>
     </div>
+
+    <!-- architecture -->
     <div>
       enter NGiNX
     </div>
@@ -270,31 +371,39 @@ p75dfed5c_myservice <em>failed</em></pre>
       </notes>
       <notes>
         This keeps memory and CPU usage very low, prevents the need for an abundance of
-        system Semaphores, and allows for smooth configuration reloads - dynamic addition and removal of upstream servers.
+        system Semaphores, and allows for smooth configuration reloads.
       </notes>
     </div>
+
+    <!-- numbers -->
     <div>
-      Apache can spawn 400 concurrent connections by default
-      <notes>(16 processes and 25 threads per process)</notes>
+      numbers
+    </div>
+    <div>
+      Apache can handle 400 concurrent connections by default
+      <br />(spawns 16 processes and 25 threads per process)
       <notes>that's with its most modern multiprocessing module, mpm_event</notes>
     </div>
     <div>
-      Maximum possible is 32,000 concurrent connections
-      <notes>(16 processes with 2000 threads per process)</notes>
+      Apache's maximum possible is 32,000 concurrent connections
+      <br />(16 processes with 2000 threads per process)
       <notes>The kind of hardware you'd need to run it on to ever reach that is insanely expensive,</notes>
       <notes>to exceed that you'd need to edit the Apache source and compile it yourself.</notes>
     </div>
     <div>
-      NGiNX can handle ~65,500 concurrent connections by default
+      <notes>doesn't have a low concurrent connections count out of the box</notes>
+      NGiNX can theoretically handle ~65,500 concurrent connections by default
       <notes>assuming your Linux OS is tuned appropriately and you have the memory and CPU to support it</notes>
       <notes>limited by file descriptors (around 65.5k by default) and available TCP sockets on the machine (also 65.5k per network interface / IP address)</notes>
     </div>
+
+    <!-- conclusion -->
     <div>
       NGiNX can handle more traffic,
       <ul>
-        <li>has almost no impact from reloads of its proxy catalog,</li>
-        <li>has no limit to the number of distinct services it can proxy to,</li>
-        <li>and uses fewer system resources than Apache.</li>
+        <li>has almost no impact from reloads of its proxy catalog</li>
+        <li>has no limit to the number of distinct services it can proxy to</li>
+        <li>and uses fewer system resources than Apache</li>
       </ul>
     </div>
     <div>
@@ -303,6 +412,7 @@ p75dfed5c_myservice <em>failed</em></pre>
         problems by throwing more Apache instances behind a more powerful load balancer
         though more servers means a higher hosting cost.</notes>
     </div>
+    <div>Q & A</div>
     <div>
       Jeff Szusz
       <br />Bull Rush Studios Inc.
