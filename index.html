@@ -73,6 +73,7 @@
     </div>
     <div>
       How Apache fails at scale (and Nginx saves the day)
+      <notes>What I'm actually going to talk about how Apache and Nginx do work, and what those differences mean when your app grows to LUDICROUS SIZE.</notes>
       <notes>There will be many digressions.</notes>
     </div>
 
@@ -191,6 +192,17 @@
         Throughput like this requires writing custom systems to take networking,
         memory and CPU management away from the Unix operating system that's hosting the application.
       </notes>
+    </div>
+    <div>
+      Netflix OpenConnect: 30,000 concurrent HD video streams from a 2U server (280TB of storage with 40 gigabit network card)
+      <notes>
+        Netflix accounts for 37% of all internet traffic in North America.
+      </notes>
+      <notes>
+        They have their own Content Delivery Network that runs on a pared down FreeBSD with custom network stack and filesystem;
+      </notes>
+      <notes> Their content is served by Nginx, which they chose for speed and stability and consistently contribute to directly to help make it go even faster.</notes>
+      <notes>Netflix offers free 1U and 2U servers that host between 14TB and 280TB of data to any ISP that will host one.</notes>
     </div>
     <div>
       <notes>Software giants now struggle with</notes>
